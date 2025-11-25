@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  username      String?  @unique
+  email         String   @unique
+  emailVerified DateTime?
+  passwordHash  String
+  role          Role     @default(buyer)
+  avatarUrl     String?
+  isBanned      Boolean  @default(false)
+  banReason     String?
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  listings      Listing[]
+  buyerOrders   Order[]  @relation("buyer")
+  sellerOrders  Order[]  @relation("seller")
+  messages      Message[]
+  conversations Conversation[] @relation("UserConversations")
+  wallet        Wallet?
+  reviews       Review[]
+  disputes      Dispute[]
+  notifications Notification[]
+  supportTickets SupportTicket[]
+}
+
+model Listing {
+  id                   String   @id @default(cuid())
+  title                String
+  description          String
+  category             String
+  tags                 String[]
+  price                Decimal  @db.Decimal(10,2)
+  seller               User     @relation(fields: [sellerId], references: [id])
+  sellerId             String
+  status               String   @default("active")
+  deliveryInstructions String?
+  riskNotes            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  orders               Order[]
+  offers               Offer[]
+}
+
+model Order {
+  id                    String   @id @default(cuid())
+  buyer                 User     @relation("buyer", fields: [buyerId], references: [id])
+  buyerId               String
+  seller                User     @relation("seller", fields: [sellerId], references: [id])
+  sellerId              String
+  listing               Listing  @relation(fields: [listingId], references: [id])
+  listingId             String
+  status                String   @default("pending_payment")
+  totalPrice            Decimal  @db.Decimal(10,2)
+  buyerFee              Decimal  @db.Decimal(10,2)
+  sellerFee             Decimal  @db.Decimal(10,2)
+  platformRevenue       Decimal  @db.Decimal(10,2)
+  paymentAt             DateTime?
+  protectionEndsAt      DateTime?
+  accessDetailsFromSeller String?
+  accessDetailsSentToBuyer Boolean @default(false)
+  escrowReleasedAt      DateTime?
+  cancelReason          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  offers                Offer[]
+  messages              Message[]
+  disputes              Dispute[]
+  transactionLogs       TransactionLog[]
+  conversations         Conversation[]
+}
+
+model Offer {
+  id        String   @id @default(cuid())
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  listingId String
+  buyer     User     @relation(fields: [buyerId], references: [id])
+  buyerId   String
+  amount    Decimal  @db.Decimal(10,2)
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  order     Order?   @relation(fields: [orderId], references: [id])
+  orderId   String?
+  users     User[]   @relation("UserConversations")
+  messages  Message[]
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  content        String
+  sender         User     @relation(fields: [senderId], references: [id])
+  senderId       String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+  system         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String   @unique
+  balance   Decimal  @db.Decimal(10,2) @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  logs      TransactionLog[]
+}
+
+model TransactionLog {
+  id              String   @id @default(cuid())
+  wallet          Wallet   @relation(fields: [walletId], references: [id])
+  walletId        String
+  order           Order?   @relation(fields: [orderId], references: [id])
+  orderId         String?
+  amount          Decimal  @db.Decimal(10,2)
+  type            String
+  buyerFee        Decimal? @db.Decimal(10,2)
+  sellerFee       Decimal? @db.Decimal(10,2)
+  platformRevenue Decimal? @db.Decimal(10,2)
+  createdAt       DateTime @default(now())
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+}
+
+model Dispute {
+  id        String   @id @default(cuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  status    String   @default("open")
+  reason    String
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  subject   String
+  status    String   @default("open")
+  createdAt DateTime @default(now())
+}
+
+model SiteSetting {
+  id                String   @id @default(cuid())
+  buyerFeePercent   Float    @default(2)
+  sellerFeePercent  Float    @default(2)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum Role {
+  buyer
+  seller
+  admin
+}
